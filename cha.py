@@ -90,7 +90,7 @@ st.markdown(
             height: 20px;
             background-color: white;
         }
-    </style>
+    
     </style>
     """,
     unsafe_allow_html=True
