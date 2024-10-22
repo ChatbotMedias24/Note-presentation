@@ -75,6 +75,22 @@ st.markdown(
         .message-container.assistant {
             justify-content: flex-start; /* Aligner à droite pour l'assistant */
         }
+        input[type="text"] {
+            background-color: #E0E0E0;
+        }
+
+        /* Style for placeholder text with bold font */
+        input::placeholder {
+            color: #555555; /* Gris foncé */
+            font-weight: bold; /* Mettre en gras */
+        }
+
+        /* Ajouter de l'espace en blanc sous le champ de saisie */
+        .input-space {
+            height: 20px;
+            background-color: white;
+        }
+    </style>
     </style>
     """,
     unsafe_allow_html=True
@@ -103,7 +119,7 @@ conversation_history = StreamlitChatMessageHistory()
 
 def main():
     conversation_history = StreamlitChatMessageHistory()  # Créez l'instance pour l'historique
-    st.header("Rapport sur le Projet de Loi de Finances pour l’année budgétaire 2025.  💬")
+    st.header("Projet de Loi de Finances pour l’année budgétaire 2025: Note de présentation 💬")
     
     # Load the document
     docx = 'note présentation (2).docx'
@@ -122,20 +138,21 @@ def main():
         with open("aaa.pkl", "wb") as f:
             pickle.dump(VectorStore, f)
 
-        st.markdown('<p style="margin-bottom: 0;"><h7><b>Posez vos questions ci-dessous:</b></h7></p>', unsafe_allow_html=True)
-
-        query_input = st.text_input("")
+        st.markdown('<div class="input-space"></div>', unsafe_allow_html=True)
         selected_questions = st.sidebar.radio("****Choisir :****", questions)
-        
-        # Initialize query
-        query = ""
-        
+
+        # Afficher toujours la barre de saisie
+        query_input = st.text_input("", key="text_input_query", placeholder="Posez votre question ici...", help="Posez votre question ici...")
+        st.markdown('<div class="input-space"></div>', unsafe_allow_html=True)
+
         if query_input and query_input not in st.session_state.previous_question:
             query = query_input
             st.session_state.previous_question.append(query_input)
         elif selected_questions:
             query = selected_questions
-        
+        else:
+            query = ""
+
         if query:
             docs = VectorStore.similarity_search(query=query, k=3)
 
@@ -143,20 +160,25 @@ def main():
             chain = load_qa_chain(llm=llm, chain_type="stuff")
             with get_openai_callback() as cb:
                 response = chain.run(input_documents=docs, question=query)
-                
                 if "Donnez-moi un résumé du rapport" in query:
                     response = "Le Projet de Loi de Finances (PLF) 2025 du Maroc présente la répartition des dépenses prévues par ministère et institution, en mettant l'accent sur les secteurs prioritaires tels que l'éducation, la santé, et l'infrastructure. Les budgets les plus importants sont alloués au Ministère de l'Éducation Nationale (87,6 milliards de dirhams), au Ministère de la Santé (32,5 milliards), et au Ministère de l'Économie et des Finances (91,7 milliards). Des fonds spéciaux sont également prévus pour le développement régional, la gestion des catastrophes, et la promotion de l'emploi. L'Administration de la Défense Nationale bénéficie d'un budget substantiel de 58,7 milliards de dirhams pour soutenir les Forces Armées Royales et leurs opérations. Le projet reflète les priorités du pays en matière de développement durable et d'amélioration des services publics."
-
+                # Votre logique pour traiter les réponses
                 conversation_history.add_user_message(query)
                 conversation_history.add_ai_message(response)
 
+            # Format et afficher les messages comme précédemment
             formatted_messages = []
+            previous_role = None  # Variable pour stocker le rôle du message précédent
             for msg in conversation_history.messages:
                 role = "user" if msg.type == "human" else "assistant"
                 avatar = "🧑" if role == "user" else "🤖"
                 css_class = "user-message" if role == "user" else "assistant-message"
-                
-                message_div = f'<div class="{css_class}">{msg.content}</div>'
+
+                if role == "user" and previous_role == "assistant":
+                    message_div = f'<div class="{css_class}" style="margin-top: 25px;">{msg.content}</div>'
+                else:
+                    message_div = f'<div class="{css_class}">{msg.content}</div>'
+
                 avatar_div = f'<div class="avatar">{avatar}</div>'
                 
                 if role == "user":
@@ -165,6 +187,7 @@ def main():
                     formatted_message = f'<div class="message-container assistant"><div class="message-content">{message_div}</div><div class="message-avatar">{avatar_div}</div></div>'
                 
                 formatted_messages.append(formatted_message)
+                previous_role = role  # Mettre à jour le rôle du message précédent
 
             messages_html = "\n".join(formatted_messages)
             st.markdown(messages_html, unsafe_allow_html=True)
