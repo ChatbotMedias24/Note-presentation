@@ -150,7 +150,7 @@ def main():
         if query :
             st.session_state.conversation_history.add_user_message(query) 
             if "Donnez-moi un résumé du rapport" in query:
-                summary="Le "Projet de Loi de Finances 2025" se concentre sur trois priorités principales : la relance économique post-pandémie, la poursuite des réformes structurelles et le renforcement des politiques sociales. Il vise à stimuler la croissance économique tout en réduisant le déficit budgétaire et en augmentant les investissements publics. Des mesures spécifiques sont prévues pour soutenir les secteurs clés tels que l'agriculture, l'industrie et les énergies renouvelables. Par ailleurs, le projet prévoit des réformes fiscales et des initiatives pour améliorer la compétitivité des entreprises, tout en accordant une attention particulière à la protection des couches sociales les plus vulnérables."
+                summary="""Le "Projet de Loi de Finances 2025" se concentre sur trois priorités principales : la relance économique post-pandémie, la poursuite des réformes structurelles et le renforcement des politiques sociales. Il vise à stimuler la croissance économique tout en réduisant le déficit budgétaire et en augmentant les investissements publics. Des mesures spécifiques sont prévues pour soutenir les secteurs clés tels que l'agriculture, l'industrie et les énergies renouvelables. Par ailleurs, le projet prévoit des réformes fiscales et des initiatives pour améliorer la compétitivité des entreprises, tout en accordant une attention particulière à la protection des couches sociales les plus vulnérables."""
                 st.session_state.conversation_history.add_ai_message(summary) 
 
             else:
