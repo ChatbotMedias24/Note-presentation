@@ -1,15 +1,12 @@
 import streamlit as st
+import openai
+import streamlit as st
 from dotenv import load_dotenv
 import pickle
-from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
 from langchain.llms import OpenAI
-from langchain.chains.question_answering import load_qa_chain
 from langchain.callbacks import get_openai_callback
 import os
-from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationChain
 from langchain.chains.conversation.memory import ConversationBufferWindowMemory
 from langchain.prompts import (
@@ -22,9 +19,18 @@ from streamlit_chat import message  # Importez la fonction message
 import toml
 import docx2txt
 from langchain.memory.chat_message_histories import StreamlitChatMessageHistory
-from langchain.callbacks.base import BaseCallbackHandler
+import docx2txt
+from dotenv import load_dotenv
 if 'previous_question' not in st.session_state:
     st.session_state.previous_question = []
+
+# Chargement de l'API Key depuis les variables d'environnement
+load_dotenv(st.secrets["OPENAI_API_KEY"])
+
+# Configuration de l'historique de la conversation
+if 'previous_questions' not in st.session_state:
+    st.session_state.previous_questions = []
+
 st.markdown(
     """
     <style>
@@ -95,7 +101,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
 # Sidebar contents
 textcontainer = st.container()
 with textcontainer:
@@ -111,36 +116,25 @@ questions = [
         "Quels sont les défis majeurs auxquels fait face l'élaboration du PLF 2025 ?",
         "Quels sont les objectifs du gouvernement en matière de développement du dessalement de l’eau de mer ?",
         "Quels sont les principaux secteurs prioritaires dans le budget 2025 du Maroc ?"
-
-    ]    
- 
-load_dotenv(st.secrets["OPENAI_API_KEY"])
-conversation_history = StreamlitChatMessageHistory()
-
+]
+# Initialisation de l'historique de la conversation dans `st.session_state`
+if 'conversation_history' not in st.session_state:
+    st.session_state.conversation_history = StreamlitChatMessageHistory()
 def main():
     conversation_history = StreamlitChatMessageHistory()  # Créez l'instance pour l'historique
-    st.header("Projet de Loi de Finances pour l’année budgétaire 2025: Note de présentation 💬")
+
+    st.header("PLF2025: Explorez le rapport sur note de présentation à travers notre chatbot 💬")
     
     # Load the document
-    docx = 'note présentation (2).docx'
+    docx = 'PLF2025- Note de présentation_Fr-1-160.docx'
     
     if docx is not None:
+        # Lire le texte du document
         text = docx2txt.process(docx)
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            length_function=len
-        )
-        chunks = text_splitter.split_text(text=text)
 
-        embeddings = OpenAIEmbeddings()
-        VectorStore = FAISS.from_texts(chunks, embedding=embeddings)
-        with open("aaa.pkl", "wb") as f:
-            pickle.dump(VectorStore, f)
-
+        # Afficher toujours la barre de saisie
         st.markdown('<div class="input-space"></div>', unsafe_allow_html=True)
         selected_questions = st.sidebar.radio("****Choisir :****", questions)
-
         # Afficher toujours la barre de saisie
         query_input = st.text_input("", key="text_input_query", placeholder="Posez votre question ici...", help="Posez votre question ici...")
         st.markdown('<div class="input-space"></div>', unsafe_allow_html=True)
@@ -153,44 +147,69 @@ def main():
         else:
             query = ""
 
-        if query:
-            docs = VectorStore.similarity_search(query=query, k=3)
+        if query :
+            st.session_state.conversation_history.add_user_message(query) 
+            if "Donnez-moi un résumé du rapport" in query:
+                summary="Le "Projet de Loi de Finances 2025" se concentre sur trois priorités principales : la relance économique post-pandémie, la poursuite des réformes structurelles et le renforcement des politiques sociales. Il vise à stimuler la croissance économique tout en réduisant le déficit budgétaire et en augmentant les investissements publics. Des mesures spécifiques sont prévues pour soutenir les secteurs clés tels que l'agriculture, l'industrie et les énergies renouvelables. Par ailleurs, le projet prévoit des réformes fiscales et des initiatives pour améliorer la compétitivité des entreprises, tout en accordant une attention particulière à la protection des couches sociales les plus vulnérables."
+                st.session_state.conversation_history.add_ai_message(summary) 
 
-            llm = OpenAI(model="gpt-3.5-turbo-instruct")
-            chain = load_qa_chain(llm=llm, chain_type="stuff")
-            with get_openai_callback() as cb:
-                response = chain.run(input_documents=docs, question=query)
-                if "Donnez-moi un résumé du rapport" in query:
-                    response = "Le Projet de Loi de Finances (PLF) 2025 du Maroc présente la répartition des dépenses prévues par ministère et institution, en mettant l'accent sur les secteurs prioritaires tels que l'éducation, la santé, et l'infrastructure. Les budgets les plus importants sont alloués au Ministère de l'Éducation Nationale (87,6 milliards de dirhams), au Ministère de la Santé (32,5 milliards), et au Ministère de l'Économie et des Finances (91,7 milliards). Des fonds spéciaux sont également prévus pour le développement régional, la gestion des catastrophes, et la promotion de l'emploi. L'Administration de la Défense Nationale bénéficie d'un budget substantiel de 58,7 milliards de dirhams pour soutenir les Forces Armées Royales et leurs opérations. Le projet reflète les priorités du pays en matière de développement durable et d'amélioration des services publics."
+            else:
+                messages = [
+                {
+                    "role": "user",
+                    "content": (
+                        f"{query}. En tenant compte du texte suivant, merci de formuler une réponse en évitant de mentionner l'absence d'informations, même si certaines données manquent. Répondez en vous appuyant sur vos connaissances et évitez de signaler que le texte est incomplet ou fragmenté. L'objectif est de fournir une réponse claire et complète, sans critique du texte, car elle sera directement affichée au lecteur.essayer de repondre à partir de texte {text} "
+                    )
+                }
+            ]
+
+            # Appeler l'API OpenAI pour obtenir le résumé
+                response = openai.ChatCompletion.create(
+                model="gpt-4o-mini",
+                messages=messages
+            )
+
+            # Récupérer le contenu de la réponse
+
+                summary = response['choices'][0]['message']['content']
+           
                 # Votre logique pour traiter les réponses
-                conversation_history.add_user_message(query)
-                conversation_history.add_ai_message(response)
+            #conversation_history.add_user_message(query)
+            #conversation_history.add_ai_message(response)
+                st.session_state.conversation_history.add_ai_message(summary)  # Ajouter à l'historique
+            
+            # Afficher la question et le résumé de l'assistant
+            #conversation_history.add_user_message(query)
+            #conversation_history.add_ai_message(summary)
 
             # Format et afficher les messages comme précédemment
+                
+            # Format et afficher les messages comme précédemment
             formatted_messages = []
-            previous_role = None  # Variable pour stocker le rôle du message précédent
-            for msg in conversation_history.messages:
-                role = "user" if msg.type == "human" else "assistant"
-                avatar = "🧑" if role == "user" else "🤖"
-                css_class = "user-message" if role == "user" else "assistant-message"
+            previous_role = None 
+            if st.session_state.conversation_history.messages: # Variable pour stocker le rôle du message précédent
+                    for msg in conversation_history.messages:
+                        role = "user" if msg.type == "human" else "assistant"
+                        avatar = "🧑" if role == "user" else "🤖"
+                        css_class = "user-message" if role == "user" else "assistant-message"
 
-                if role == "user" and previous_role == "assistant":
-                    message_div = f'<div class="{css_class}" style="margin-top: 25px;">{msg.content}</div>'
-                else:
-                    message_div = f'<div class="{css_class}">{msg.content}</div>'
+                        if role == "user" and previous_role == "assistant":
+                            message_div = f'<div class="{css_class}" style="margin-top: 25px;">{msg.content}</div>'
+                        else:
+                            message_div = f'<div class="{css_class}">{msg.content}</div>'
 
-                avatar_div = f'<div class="avatar">{avatar}</div>'
+                        avatar_div = f'<div class="avatar">{avatar}</div>'
                 
-                if role == "user":
-                    formatted_message = f'<div class="message-container user"><div class="message-avatar">{avatar_div}</div><div class="message-content">{message_div}</div></div>'
-                else:
-                    formatted_message = f'<div class="message-container assistant"><div class="message-content">{message_div}</div><div class="message-avatar">{avatar_div}</div></div>'
+                        if role == "user":
+                            formatted_message = f'<div class="message-container user"><div class="message-avatar">{avatar_div}</div><div class="message-content">{message_div}</div></div>'
+                        else:
+                            formatted_message = f'<div class="message-container assistant"><div class="message-content">{message_div}</div><div class="message-avatar">{avatar_div}</div></div>'
                 
-                formatted_messages.append(formatted_message)
-                previous_role = role  # Mettre à jour le rôle du message précédent
+                        formatted_messages.append(formatted_message)
+                        previous_role = role  # Mettre à jour le rôle du message précédent
 
-            messages_html = "\n".join(formatted_messages)
-            st.markdown(messages_html, unsafe_allow_html=True)
-
+                    messages_html = "\n".join(formatted_messages)
+                    st.markdown(messages_html, unsafe_allow_html=True)
 if __name__ == '__main__':
     main()
+
